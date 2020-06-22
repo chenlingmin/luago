@@ -3,7 +3,6 @@ package vm
 import "luago/api"
 
 // R(A) := R(B)
-
 func move(i Instruction, vm api.LuaVM) {
 	a, b, _ := i.ABC()
 	a += 1
