@@ -17,9 +17,20 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		proto := binchunk.Undump(data)
-		luaMain(proto)
+		ls := state.New()
+		ls.Register("print", print)
+		ls.Load(data, os.Args[1], "b")
+		ls.Call(0, 0)
 	}
+
+	//if len(os.Args) > 1 {
+	//	data, err := ioutil.ReadFile(os.Args[1])
+	//	if err != nil {
+	//		panic(err)
+	//	}
+	//	proto := binchunk.Undump(data)
+	//	luaMain(proto)
+	//}
 	//}
 	//ls := state.New()
 	//ls.PushInteger(1)
@@ -62,21 +73,40 @@ func main() {
 	//printStack(ls)
 }
 
-func luaMain(proto *binchunk.Prototype) {
-	nRegs := int(proto.MaxStackSize)
-	ls := state.New(nRegs+8, proto)
-	ls.SetTop(nRegs)
-	for {
-		pc := ls.PC()
-		inst := vm.Instruction(ls.Fetch())
-		if inst.Opcode() != vm.OP_RETURN {
-			inst.Execute(ls)
-			fmt.Printf("[%20d] %s ", pc+1, inst.OpName())
-			printStack(ls)
+//
+//func luaMain(proto *binchunk.Prototype) {
+//	nRegs := int(proto.MaxStackSize)
+//	ls := state.New(nRegs+8, proto)
+//	ls.SetTop(nRegs)
+//	for {
+//		pc := ls.PC()
+//		inst := vm.Instruction(ls.Fetch())
+//		if inst.Opcode() != vm.OP_RETURN {
+//			inst.Execute(ls)
+//			fmt.Printf("[%20d] %s ", pc+1, inst.OpName())
+//			printStack(ls)
+//		} else {
+//			break
+//		}
+//	}
+//}
+
+func print(ls api.LuaState) int {
+	nArgs := ls.GetTop()
+	for i := 1; i <= nArgs; i++ {
+		if ls.IsBoolean(i) {
+			fmt.Printf("%t", ls.ToBoolean(i))
+		} else if ls.IsString(i) {
+			fmt.Print(ls.ToString(i))
 		} else {
-			break
+			fmt.Print(ls.TypeName(ls.Type(i)))
+		}
+		if i < nArgs {
+			fmt.Print("\t")
 		}
 	}
+	fmt.Println()
+	return 0
 }
 
 func printStack(ls api.LuaState) {

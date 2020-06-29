@@ -26,6 +26,11 @@ func (self *luaState) GetI(idx int, i int64) api.LuaType {
 	return self.getTable(t, i)
 }
 
+func (self *luaState) GetGlobal(name string) api.LuaType {
+	t := self.registry.get(api.LUA_RIDX_GLOBALS)
+	return self.getTable(t, name)
+}
+
 func (self *luaState) getTable(t, k luaValue) api.LuaType {
 	if tbl, ok := t.(*luaTable); ok {
 		v := tbl.get(k)
