@@ -21,7 +21,7 @@ const MAXARG_sBx = MAXARG_Bx >> 1 // 131071
 type Instruction uint32
 
 func (self Instruction) Opcode() int {
-	return int(self & 0x3F) // 0011 1111
+	return int(self & 0x3F)
 }
 
 func (self Instruction) ABC() (a, b, c int) {

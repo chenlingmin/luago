@@ -1,6 +1,6 @@
 package state
 
-import "luago/api"
+import . "luago/api"
 
 type luaState struct {
 	registry *luaTable
@@ -8,13 +8,11 @@ type luaState struct {
 }
 
 func New() *luaState {
-
 	registry := newLuaTable(0, 0)
-	registry.put(api.LUA_RIDX_GLOBALS, newLuaTable(0, 0)) //
+	registry.put(LUA_RIDX_GLOBALS, newLuaTable(0, 0))
 
 	ls := &luaState{registry: registry}
-	ls.pushLuaStack(newLuaStack(api.LUA_MINSTACK, ls))
-
+	ls.pushLuaStack(newLuaStack(LUA_MINSTACK, ls))
 	return ls
 }
 

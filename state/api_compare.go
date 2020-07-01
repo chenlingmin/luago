@@ -1,22 +1,25 @@
 package state
 
-import "luago/api"
+import . "luago/api"
 
 // [-0, +0, e]
 // http://www.lua.org/manual/5.3/manual.html#lua_compare
-func (self *luaState) Compare(idx1, idx2 int, op api.CompareOp) bool {
+func (self *luaState) Compare(idx1, idx2 int, op CompareOp) bool {
+	if !self.stack.isValid(idx1) || !self.stack.isValid(idx2) {
+		return false
+	}
+
 	a := self.stack.get(idx1)
 	b := self.stack.get(idx2)
-
 	switch op {
-	case api.LUA_OPEQ:
+	case LUA_OPEQ:
 		return _eq(a, b)
-	case api.LUA_OPLT:
+	case LUA_OPLT:
 		return _lt(a, b)
-	case api.LUA_OPLE:
+	case LUA_OPLE:
 		return _le(a, b)
 	default:
-		panic("invalid compare op! ")
+		panic("invalid compare op!")
 	}
 }
 

@@ -1,9 +1,7 @@
 package state
 
-import (
-	"luago/number"
-	"math"
-)
+import "math"
+import "luago/number"
 
 type luaTable struct {
 	arr  []luaValue
@@ -21,6 +19,10 @@ func newLuaTable(nArr, nRec int) *luaTable {
 	return t
 }
 
+func (self *luaTable) len() int {
+	return len(self.arr)
+}
+
 func (self *luaTable) get(key luaValue) luaValue {
 	key = _floatToInteger(key)
 	if idx, ok := key.(int64); ok {
@@ -31,25 +33,23 @@ func (self *luaTable) get(key luaValue) luaValue {
 	return self._map[key]
 }
 
-func (self *luaTable) len() int {
-	return len(self.arr)
-}
-
-func (self *luaTable) _shrinkArray() {
-	for i := len(self.arr); i >= 0; i-- {
-		if self.arr[i] == nil {
-			self.arr = self.arr[0:i]
+func _floatToInteger(key luaValue) luaValue {
+	if f, ok := key.(float64); ok {
+		if i, ok := number.FloatToInteger(f); ok {
+			return i
 		}
 	}
+	return key
 }
 
 func (self *luaTable) put(key, val luaValue) {
 	if key == nil {
-		panic("table index is nil! ")
+		panic("table index is nil!")
 	}
 	if f, ok := key.(float64); ok && math.IsNaN(f) {
-		panic("table index is NaN! ")
+		panic("table index is NaN!")
 	}
+
 	key = _floatToInteger(key)
 	if idx, ok := key.(int64); ok && idx >= 1 {
 		arrLen := int64(len(self.arr))
@@ -79,6 +79,14 @@ func (self *luaTable) put(key, val luaValue) {
 	}
 }
 
+func (self *luaTable) _shrinkArray() {
+	for i := len(self.arr) - 1; i >= 0; i-- {
+		if self.arr[i] == nil {
+			self.arr = self.arr[0:i]
+		}
+	}
+}
+
 func (self *luaTable) _expandArray() {
 	for idx := int64(len(self.arr)) + 1; true; idx++ {
 		if val, found := self._map[idx]; found {
@@ -88,14 +96,4 @@ func (self *luaTable) _expandArray() {
 			break
 		}
 	}
-
-}
-
-func _floatToInteger(key luaValue) luaValue {
-	if f, ok := key.(float64); ok {
-		if i, ok := number.FloatToInteger(f); ok {
-			return i
-		}
-	}
-	return key
 }

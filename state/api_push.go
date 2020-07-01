@@ -1,6 +1,6 @@
 package state
 
-import "luago/api"
+import . "luago/api"
 
 // [-0, +1, –]
 // http://www.lua.org/manual/5.3/manual.html#lua_pushnil
@@ -34,13 +34,24 @@ func (self *luaState) PushString(s string) {
 
 // [-0, +1, –]
 // http://www.lua.org/manual/5.3/manual.html#lua_pushcfunction
-func (self *luaState) PushGoFunction(f api.GoFunction) {
-	self.stack.push(newGoClosure(f))
+func (self *luaState) PushGoFunction(f GoFunction) {
+	self.stack.push(newGoClosure(f, 0))
+}
+
+// [-n, +1, m]
+// http://www.lua.org/manual/5.3/manual.html#lua_pushcclosure
+func (self *luaState) PushGoClosure(f GoFunction, n int) {
+	closure := newGoClosure(f, n)
+	for i := n; i > 0; i-- {
+		val := self.stack.pop()
+		closure.upvals[i-1] = &upvalue{&val}
+	}
+	self.stack.push(closure)
 }
 
 // [-0, +1, –]
 // http://www.lua.org/manual/5.3/manual.html#lua_pushglobaltable
 func (self *luaState) PushGlobalTable() {
-	global := self.registry.get(api.LUA_RIDX_GLOBALS)
+	global := self.registry.get(LUA_RIDX_GLOBALS)
 	self.stack.push(global)
 }

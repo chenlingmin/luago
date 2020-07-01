@@ -19,6 +19,7 @@ func main() {
 		}
 		ls := state.New()
 		ls.Register("print", print)
+		//ls.Register("fail", fail)
 		ls.Load(data, os.Args[1], "b")
 		ls.Call(0, 0)
 	}
@@ -90,6 +91,9 @@ func main() {
 //		}
 //	}
 //}
+func fail(ls api.LuaState) int {
+	return 0
+}
 
 func print(ls api.LuaState) int {
 	nArgs := ls.GetTop()
