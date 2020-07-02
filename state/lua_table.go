@@ -4,8 +4,9 @@ import "math"
 import "luago/number"
 
 type luaTable struct {
-	arr  []luaValue
-	_map map[luaValue]luaValue
+	metatable *luaTable
+	arr       []luaValue
+	_map      map[luaValue]luaValue
 }
 
 func newLuaTable(nArr, nRec int) *luaTable {
@@ -17,6 +18,11 @@ func newLuaTable(nArr, nRec int) *luaTable {
 		t._map = make(map[luaValue]luaValue, nRec)
 	}
 	return t
+}
+
+func (self *luaTable) hasMetafield(fieldName string) bool {
+	return self.metatable != nil &&
+		self.metatable.get(fieldName) != nil
 }
 
 func (self *luaTable) len() int {

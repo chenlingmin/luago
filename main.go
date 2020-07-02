@@ -19,7 +19,9 @@ func main() {
 		}
 		ls := state.New()
 		ls.Register("print", print)
-		//ls.Register("fail", fail)
+		ls.Register("fail", fail)
+		ls.Register("getmetatable", getMetatable)
+		ls.Register("setmetatable", setMetatable)
 		ls.Load(data, os.Args[1], "b")
 		ls.Call(0, 0)
 	}
@@ -91,6 +93,18 @@ func main() {
 //		}
 //	}
 //}
+func getMetatable(ls api.LuaState) int {
+	if !ls.GetMetatable(1) {
+		ls.PushNil()
+	}
+	return 1
+}
+
+func setMetatable(ls api.LuaState) int {
+	ls.SetMetatable(1)
+	return 1
+}
+
 func fail(ls api.LuaState) int {
 	return 0
 }
