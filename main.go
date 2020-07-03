@@ -3,10 +3,10 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"luago/api"
-	"luago/binchunk"
-	"luago/state"
-	"luago/vm"
+	. "luago/api"
+	. "luago/binchunk"
+	. "luago/compiler/lexer"
+	. "luago/vm"
 	"os"
 )
 
@@ -17,26 +17,35 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		ls := state.New()
-		ls.Register("print", print)
-		ls.Register("fail", fail)
-		ls.Register("getmetatable", getMetatable)
-		ls.Register("setmetatable", setMetatable)
-		ls.Register("next", next)
-		ls.Register("pairs", pairs)
-		ls.Register("ipairs", iPairs)
-		ls.Register("error", error)
-		ls.Register("pcall", pCall)
-		ls.Load(data, os.Args[1], "b")
-		ls.Call(0, 0)
+		testLexer(string(data), os.Args[1])
 	}
+
+	//
+	//if len(os.Args) > 1 {
+	//	data, err := ioutil.ReadFile(os.Args[1])
+	//	if err != nil {
+	//		panic(err)
+	//	}
+	//	ls := state.New()
+	//	ls.Register("print", print)
+	//	ls.Register("fail", fail)
+	//	ls.Register("getmetatable", getMetatable)
+	//	ls.Register("setmetatable", setMetatable)
+	//	ls.Register("next", next)
+	//	ls.Register("pairs", pairs)
+	//	ls.Register("ipairs", iPairs)
+	//	ls.Register("error", error)
+	//	ls.Register("pcall", pCall)
+	//	ls.Load(data, os.Args[1], "b")
+	//	ls.Call(0, 0)
+	//}
 
 	//if len(os.Args) > 1 {
 	//	data, err := ioutil.ReadFile(os.Args[1])
 	//	if err != nil {
 	//		panic(err)
 	//	}
-	//	proto := binchunk.Undump(data)
+	//	proto := Undump(data)
 	//	luaMain(proto)
 	//}
 	//}
@@ -47,15 +56,15 @@ func main() {
 	//ls.PushString("4.0")
 	//printStack(ls)
 	//
-	//ls.Arith(api.LUA_OPADD)
+	//ls.Arith(LUA_OPADD)
 	//printStack(ls)
-	//ls.Arith(api.LUA_OPBNOT)
+	//ls.Arith(LUA_OPBNOT)
 	//printStack(ls)
 	//ls.Len(2)
 	//printStack(ls)
 	//ls.Concat(3)
 	//printStack(ls)
-	//ls.PushBoolean(ls.Compare(1, 2, api.LUA_OPEQ))
+	//ls.PushBoolean(ls.Compare(1, 2, LUA_OPEQ))
 	//printStack(ls)
 
 	//
@@ -81,15 +90,47 @@ func main() {
 	//printStack(ls)
 }
 
+func testLexer(chunk, chunkName string) {
+	lexer := NewLexer(chunk, chunkName)
+	for {
+		line, kind, token := lexer.NextToken()
+		fmt.Printf("[%2d] [%-10s] %s\n", line, kindToCategory(kind), token)
+		if kind == TOKEN_EOF {
+			break
+		}
+	}
+}
+
+func kindToCategory(kind int) string {
+	switch {
+	case kind < TOKEN_SEP_SEMI:
+		return "other"
+	case kind <= TOKEN_SEP_RCURLY:
+		return "separator"
+	case kind <= TOKEN_OP_NOT:
+		return "operator"
+	case kind <= TOKEN_KW_WHILE:
+		return "keyword"
+	case kind == TOKEN_IDENTIFIER:
+		return "identifier"
+	case kind == TOKEN_NUMBER:
+		return "number"
+	case kind == TOKEN_STRING:
+		return "string"
+	default:
+		return "other"
+	}
+}
+
 //
-//func luaMain(proto *binchunk.Prototype) {
+//func luaMain(proto *Prototype) {
 //	nRegs := int(proto.MaxStackSize)
 //	ls := state.New(nRegs+8, proto)
 //	ls.SetTop(nRegs)
 //	for {
 //		pc := ls.PC()
-//		inst := vm.Instruction(ls.Fetch())
-//		if inst.Opcode() != vm.OP_RETURN {
+//		inst := Instruction(ls.Fetch())
+//		if inst.Opcode() != OP_RETURN {
 //			inst.Execute(ls)
 //			fmt.Printf("[%20d] %s ", pc+1, inst.OpName())
 //			printStack(ls)
@@ -99,42 +140,42 @@ func main() {
 //	}
 //}
 
-func error(ls api.LuaState) int {
+func error(ls LuaState) int {
 	return ls.Error()
 }
 
-func pCall(ls api.LuaState) int {
+func pCall(ls LuaState) int {
 	nArgs := ls.GetTop() - 1
 	status := ls.PCall(nArgs, -1, 0)
-	ls.PushBoolean(status == api.LUA_OK)
+	ls.PushBoolean(status == LUA_OK)
 	ls.Insert(1)
 	return ls.GetTop()
 }
 
-func iPairs(ls api.LuaState) int {
+func iPairs(ls LuaState) int {
 	ls.PushGoFunction(_isPairsAux)
 	ls.PushValue(1)
 	ls.PushInteger(0)
 	return 3
 }
-func _isPairsAux(ls api.LuaState) int {
+func _isPairsAux(ls LuaState) int {
 	i := ls.ToInteger(2) + 1
 	ls.PushInteger(i)
-	if ls.GetI(1, i) == api.LUA_TNIL {
+	if ls.GetI(1, i) == LUA_TNIL {
 		return 1
 	} else {
 		return 2
 	}
 }
 
-func pairs(ls api.LuaState) int {
+func pairs(ls LuaState) int {
 	ls.PushGoFunction(next)
 	ls.PushValue(1)
 	ls.PushNil()
 	return 3
 }
 
-func next(ls api.LuaState) int {
+func next(ls LuaState) int {
 	ls.SetTop(2) //
 	if ls.Next(1) {
 		return 2
@@ -144,23 +185,23 @@ func next(ls api.LuaState) int {
 	}
 }
 
-func getMetatable(ls api.LuaState) int {
+func getMetatable(ls LuaState) int {
 	if !ls.GetMetatable(1) {
 		ls.PushNil()
 	}
 	return 1
 }
 
-func setMetatable(ls api.LuaState) int {
+func setMetatable(ls LuaState) int {
 	ls.SetMetatable(1)
 	return 1
 }
 
-func fail(ls api.LuaState) int {
+func fail(ls LuaState) int {
 	return 0
 }
 
-func print(ls api.LuaState) int {
+func print(ls LuaState) int {
 	nArgs := ls.GetTop()
 	for i := 1; i <= nArgs; i++ {
 		if ls.IsBoolean(i) {
@@ -178,16 +219,16 @@ func print(ls api.LuaState) int {
 	return 0
 }
 
-func printStack(ls api.LuaState) {
+func printStack(ls LuaState) {
 	top := ls.GetTop()
 	for i := 1; i <= top; i++ {
 		t := ls.Type(i)
 		switch t {
-		case api.LUA_TBOOLEAN:
+		case LUA_TBOOLEAN:
 			fmt.Printf("[%t]", ls.ToBoolean(i))
-		case api.LUA_TNUMBER:
+		case LUA_TNUMBER:
 			fmt.Printf("[%g]", ls.ToNumber(i))
-		case api.LUA_TSTRING:
+		case LUA_TSTRING:
 			fmt.Printf("[%q]", ls.ToString(i))
 		default: // other values
 			fmt.Printf("[%s]", ls.TypeName(t))
@@ -196,7 +237,7 @@ func printStack(ls api.LuaState) {
 	fmt.Println()
 }
 
-func list(f *binchunk.Prototype) {
+func list(f *Prototype) {
 	printHeader(f)
 	printCode(f)
 	printDetail(f)
@@ -205,7 +246,7 @@ func list(f *binchunk.Prototype) {
 	}
 }
 
-func printHeader(f *binchunk.Prototype) {
+func printHeader(f *Prototype) {
 	funcType := "main"
 	if f.LineDefined > 0 {
 		funcType = "function"
@@ -226,14 +267,14 @@ func printHeader(f *binchunk.Prototype) {
 		len(f.LocVars), len(f.Constants), len(f.Protos))
 }
 
-func printCode(f *binchunk.Prototype) {
+func printCode(f *Prototype) {
 	for pc, c := range f.Code {
 		line := "-"
 		if len(f.LineInfo) > 0 {
 			line = fmt.Sprintf("%d", f.LineInfo[pc])
 		}
 
-		i := vm.Instruction(c)
+		i := Instruction(c)
 
 		fmt.Printf("\t%d\t[%s]\t%s \t", pc+1, line, i.OpName())
 		printOperands(i)
@@ -241,45 +282,45 @@ func printCode(f *binchunk.Prototype) {
 	}
 }
 
-func printOperands(i vm.Instruction) {
+func printOperands(i Instruction) {
 	switch i.OpMode() {
-	case vm.IABC:
+	case IABC:
 		a, b, c := i.ABC()
 		fmt.Printf("%d", a)
-		if i.BMode() != vm.OpArgN {
+		if i.BMode() != OpArgN {
 			if b > 0xFF {
 				fmt.Printf(" %d", -1-b&0xFF)
 			} else {
 				fmt.Printf(" %d", b)
 			}
 		}
-		if i.CMode() != vm.OpArgN {
+		if i.CMode() != OpArgN {
 			if c > 0xFF {
 				fmt.Printf(" %d", -1-c&0xFF)
 			} else {
 				fmt.Printf(" %d", c)
 			}
 		}
-	case vm.IABx:
+	case IABx:
 		a, bx := i.ABx()
 
 		fmt.Printf("%d", a)
-		if i.BMode() == vm.OpArgK {
+		if i.BMode() == OpArgK {
 			fmt.Printf(" %d", -1-bx)
-		} else if i.BMode() == vm.OpArgU {
+		} else if i.BMode() == OpArgU {
 			fmt.Printf(" %d", bx)
 		}
-	case vm.IAsBx:
+	case IAsBx:
 		a, sbx := i.AsBx()
 		fmt.Printf("%d %d", a, sbx)
-	case vm.IAx:
+	case IAx:
 		ax := i.Ax()
 		fmt.Printf("%d", -1-ax)
 	}
 
 }
 
-func printDetail(f *binchunk.Prototype) {
+func printDetail(f *Prototype) {
 	fmt.Printf("constants (%d):\n", len(f.Constants))
 	for i, k := range f.Constants {
 		fmt.Printf("\t%d\t%s\n", i+1, constantToString(k))
@@ -315,7 +356,7 @@ func constantToString(k interface{}) string {
 	}
 }
 
-func upvalName(f *binchunk.Prototype, idx int) string {
+func upvalName(f *Prototype, idx int) string {
 	if len(f.UpvalueNames) > 0 {
 		return f.UpvalueNames[idx]
 	}
