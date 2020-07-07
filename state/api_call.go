@@ -1,13 +1,21 @@
 package state
 
-import . "luago/api"
+import (
+	. "luago/api"
+	"luago/compiler"
+)
 import "luago/binchunk"
 import "luago/vm"
 
 // [-0, +1, –]
 // http://www.lua.org/manual/5.3/manual.html#lua_load
 func (self *luaState) Load(chunk []byte, chunkName, mode string) int {
-	proto := binchunk.Undump(chunk) // todo
+	var proto *binchunk.Prototype
+	if binchunk.IsBinaryChunk(chunk) {
+		proto = binchunk.Undump(chunk)
+	} else {
+		proto = compiler.Compile(string(chunk), chunkName)
+	}
 	c := newLuaClosure(proto)
 	self.stack.push(c)
 	if len(proto.Upvalues) > 0 {
