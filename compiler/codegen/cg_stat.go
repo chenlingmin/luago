@@ -32,7 +32,7 @@ func cgStat(fi *funcInfo, node Stat) {
 }
 
 func cgLocalFuncDefStat(fi *funcInfo, node *LocalFuncDefStat) {
-	r := fi.addLocVar(node.Name)
+	r := fi.addLocVar(node.Name, fi.pc()+2)
 	cgFuncDefExp(fi, node.Exp, r)
 }
 
@@ -43,15 +43,15 @@ func cgFuncCallStat(fi *funcInfo, node *FuncCallStat) {
 }
 
 func cgBreakStat(fi *funcInfo, node *BreakStat) {
-	pc := fi.emitJmp(0, 0)
+	pc := fi.emitJmp(node.Line, 0, 0)
 	fi.addBreakJmp(pc)
 }
 
 func cgDoStat(fi *funcInfo, node *DoStat) {
 	fi.enterScope(false)
 	cgBlock(fi, node.Block)
-	fi.closeOpenUpvals()
-	fi.exitScope()
+	fi.closeOpenUpvals(node.Block.LastLine)
+	fi.exitScope(fi.pc() + 1)
 }
 
 /*
@@ -66,18 +66,19 @@ while exp do block end <-'
 func cgWhileStat(fi *funcInfo, node *WhileStat) {
 	pcBeforeExp := fi.pc()
 
-	r := fi.allocReg()
-	cgExp(fi, node.Exp, r, 1)
-	fi.freeReg()
+	oldRegs := fi.usedRegs
+	a, _ := expToOpArg(fi, node.Exp, ARG_REG)
+	fi.usedRegs = oldRegs
 
-	fi.emitTest(r, 0)
-	pcJmpToEnd := fi.emitJmp(0, 0)
+	line := lastLineOf(node.Exp)
+	fi.emitTest(line, a, 0)
+	pcJmpToEnd := fi.emitJmp(line, 0, 0)
 
 	fi.enterScope(true)
 	cgBlock(fi, node.Block)
-	fi.closeOpenUpvals()
-	fi.emitJmp(0, pcBeforeExp-fi.pc()-1)
-	fi.exitScope()
+	fi.closeOpenUpvals(node.Block.LastLine)
+	fi.emitJmp(node.Block.LastLine, 0, pcBeforeExp-fi.pc()-1)
+	fi.exitScope(fi.pc())
 
 	fi.fixSbx(pcJmpToEnd, fi.pc()-pcJmpToEnd)
 }
@@ -94,15 +95,16 @@ func cgRepeatStat(fi *funcInfo, node *RepeatStat) {
 	pcBeforeBlock := fi.pc()
 	cgBlock(fi, node.Block)
 
-	r := fi.allocReg()
-	cgExp(fi, node.Exp, r, 1)
-	fi.freeReg()
+	oldRegs := fi.usedRegs
+	a, _ := expToOpArg(fi, node.Exp, ARG_REG)
+	fi.usedRegs = oldRegs
 
-	fi.emitTest(r, 0)
-	fi.emitJmp(fi.getJmpArgA(), pcBeforeBlock-fi.pc()-1)
-	fi.closeOpenUpvals()
+	line := lastLineOf(node.Exp)
+	fi.emitTest(line, a, 0)
+	fi.emitJmp(line, fi.getJmpArgA(), pcBeforeBlock-fi.pc()-1)
+	fi.closeOpenUpvals(line)
 
-	fi.exitScope()
+	fi.exitScope(fi.pc() + 1)
 }
 
 /*
@@ -123,19 +125,21 @@ func cgIfStat(fi *funcInfo, node *IfStat) {
 			fi.fixSbx(pcJmpToNextExp, fi.pc()-pcJmpToNextExp)
 		}
 
-		r := fi.allocReg()
-		cgExp(fi, exp, r, 1)
-		fi.freeReg()
+		oldRegs := fi.usedRegs
+		a, _ := expToOpArg(fi, exp, ARG_REG)
+		fi.usedRegs = oldRegs
 
-		fi.emitTest(r, 0)
-		pcJmpToNextExp = fi.emitJmp(0, 0)
+		line := lastLineOf(exp)
+		fi.emitTest(line, a, 0)
+		pcJmpToNextExp = fi.emitJmp(line, 0, 0)
 
+		block := node.Blocks[i]
 		fi.enterScope(false)
-		cgBlock(fi, node.Blocks[i])
-		fi.closeOpenUpvals()
-		fi.exitScope()
+		cgBlock(fi, block)
+		fi.closeOpenUpvals(block.LastLine)
+		fi.exitScope(fi.pc() + 1)
 		if i < len(node.Exps)-1 {
-			pcJmpToEnds[i] = fi.emitJmp(0, 0)
+			pcJmpToEnds[i] = fi.emitJmp(block.LastLine, 0, 0)
 		} else {
 			pcJmpToEnds[i] = pcJmpToNextExp
 		}
@@ -147,47 +151,63 @@ func cgIfStat(fi *funcInfo, node *IfStat) {
 }
 
 func cgForNumStat(fi *funcInfo, node *ForNumStat) {
+	forIndexVar := "(for index)"
+	forLimitVar := "(for limit)"
+	forStepVar := "(for step)"
+
 	fi.enterScope(true)
 
 	cgLocalVarDeclStat(fi, &LocalVarDeclStat{
-		NameList: []string{"(for index)", "(for limit)", "(for step)"},
+		NameList: []string{forIndexVar, forLimitVar, forStepVar},
 		ExpList:  []Exp{node.InitExp, node.LimitExp, node.StepExp},
 	})
-	fi.addLocVar(node.VarName)
+	fi.addLocVar(node.VarName, fi.pc()+2)
 
 	a := fi.usedRegs - 4
-	pcForPrep := fi.emitForPrep(a, 0)
+	pcForPrep := fi.emitForPrep(node.LineOfDo, a, 0)
 	cgBlock(fi, node.Block)
-	fi.closeOpenUpvals()
-	pcForLoop := fi.emitForLoop(a, 0)
+	fi.closeOpenUpvals(node.Block.LastLine)
+	pcForLoop := fi.emitForLoop(node.LineOfFor, a, 0)
 
 	fi.fixSbx(pcForPrep, pcForLoop-pcForPrep-1)
 	fi.fixSbx(pcForLoop, pcForPrep-pcForLoop)
 
-	fi.exitScope()
+	fi.exitScope(fi.pc())
+	fi.fixEndPC(forIndexVar, 1)
+	fi.fixEndPC(forLimitVar, 1)
+	fi.fixEndPC(forStepVar, 1)
 }
 
 func cgForInStat(fi *funcInfo, node *ForInStat) {
+	forGeneratorVar := "(for generator)"
+	forStateVar := "(for state)"
+	forControlVar := "(for control)"
+
 	fi.enterScope(true)
 
 	cgLocalVarDeclStat(fi, &LocalVarDeclStat{
-		NameList: []string{"(for generator)", "(for state)", "(for control)"},
+		//LastLine: 0,
+		NameList: []string{forGeneratorVar, forStateVar, forControlVar},
 		ExpList:  node.ExpList,
 	})
 	for _, name := range node.NameList {
-		fi.addLocVar(name)
+		fi.addLocVar(name, fi.pc()+2)
 	}
 
-	pcJmpToTFC := fi.emitJmp(0, 0)
+	pcJmpToTFC := fi.emitJmp(node.LineOfDo, 0, 0)
 	cgBlock(fi, node.Block)
-	fi.closeOpenUpvals()
+	fi.closeOpenUpvals(node.Block.LastLine)
 	fi.fixSbx(pcJmpToTFC, fi.pc()-pcJmpToTFC)
 
-	rGenerator := fi.slotOfLocVar("(for generator)")
-	fi.emitTForCall(rGenerator, len(node.NameList))
-	fi.emitTForLoop(rGenerator+2, pcJmpToTFC-fi.pc()-1)
+	line := lineOf(node.ExpList[0])
+	rGenerator := fi.slotOfLocVar(forGeneratorVar)
+	fi.emitTForCall(line, rGenerator, len(node.NameList))
+	fi.emitTForLoop(line, rGenerator+2, pcJmpToTFC-fi.pc()-1)
 
-	fi.exitScope()
+	fi.exitScope(fi.pc() - 1)
+	fi.fixEndPC(forGeneratorVar, 2)
+	fi.fixEndPC(forStateVar, 2)
+	fi.fixEndPC(forControlVar, 2)
 }
 
 func cgLocalVarDeclStat(fi *funcInfo, node *LocalVarDeclStat) {
@@ -226,13 +246,14 @@ func cgLocalVarDeclStat(fi *funcInfo, node *LocalVarDeclStat) {
 		if !multRet {
 			n := nNames - nExps
 			a := fi.allocRegs(n)
-			fi.emitLoadNil(a, n)
+			fi.emitLoadNil(node.LastLine, a, n)
 		}
 	}
 
 	fi.usedRegs = oldRegs
+	startPC := fi.pc() + 1
 	for _, name := range node.NameList {
-		fi.addLocVar(name)
+		fi.addLocVar(name, startPC)
 	}
 }
 
@@ -292,35 +313,36 @@ func cgAssignStat(fi *funcInfo, node *AssignStat) {
 		if !multRet {
 			n := nVars - nExps
 			a := fi.allocRegs(n)
-			fi.emitLoadNil(a, n)
+			fi.emitLoadNil(node.LastLine, a, n)
 		}
 	}
 
+	lastLine := node.LastLine
 	for i, exp := range node.VarList {
 		if nameExp, ok := exp.(*NameExp); ok {
 			varName := nameExp.Name
 			if a := fi.slotOfLocVar(varName); a >= 0 {
-				fi.emitMove(a, vRegs[i])
+				fi.emitMove(lastLine, a, vRegs[i])
 			} else if b := fi.indexOfUpval(varName); b >= 0 {
-				fi.emitSetUpval(vRegs[i], b)
+				fi.emitSetUpval(lastLine, vRegs[i], b)
 			} else if a := fi.slotOfLocVar("_ENV"); a >= 0 {
 				if kRegs[i] < 0 {
 					b := 0x100 + fi.indexOfConstant(varName)
-					fi.emitSetTable(a, b, vRegs[i])
+					fi.emitSetTable(lastLine, a, b, vRegs[i])
 				} else {
-					fi.emitSetTable(a, kRegs[i], vRegs[i])
+					fi.emitSetTable(lastLine, a, kRegs[i], vRegs[i])
 				}
 			} else { // global var
 				a := fi.indexOfUpval("_ENV")
 				if kRegs[i] < 0 {
 					b := 0x100 + fi.indexOfConstant(varName)
-					fi.emitSetTabUp(a, b, vRegs[i])
+					fi.emitSetTabUp(lastLine, a, b, vRegs[i])
 				} else {
-					fi.emitSetTabUp(a, kRegs[i], vRegs[i])
+					fi.emitSetTabUp(lastLine, a, kRegs[i], vRegs[i])
 				}
 			}
 		} else {
-			fi.emitSetTable(tRegs[i], kRegs[i], vRegs[i])
+			fi.emitSetTable(lastLine, tRegs[i], kRegs[i], vRegs[i])
 		}
 	}
 

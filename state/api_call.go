@@ -1,10 +1,8 @@
 package state
 
-import (
-	. "luago/api"
-	"luago/compiler"
-)
+import . "luago/api"
 import "luago/binchunk"
+import "luago/compiler"
 import "luago/vm"
 
 // [-0, +1, –]
@@ -16,6 +14,7 @@ func (self *luaState) Load(chunk []byte, chunkName, mode string) int {
 	} else {
 		proto = compiler.Compile(string(chunk), chunkName)
 	}
+
 	c := newLuaClosure(proto)
 	self.stack.push(c)
 	if len(proto.Upvalues) > 0 {

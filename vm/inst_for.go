@@ -51,9 +51,13 @@ func forLoop(i Instruction, vm LuaVM) {
 	}
 }
 
+// if R(A+1) ~= nil then {
+//   R(A)=R(A+1); pc += sBx
+// }
 func tForLoop(i Instruction, vm LuaVM) {
 	a, sBx := i.AsBx()
 	a += 1
+
 	if !vm.IsNil(a + 1) {
 		vm.Copy(a+1, a)
 		vm.AddPC(sBx)

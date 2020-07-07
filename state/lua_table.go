@@ -8,6 +8,7 @@ type luaTable struct {
 	arr       []luaValue
 	_map      map[luaValue]luaValue
 	keys      map[luaValue]luaValue // used by next()
+	lastKey   luaValue              // used by next()
 	changed   bool                  // used by next()
 }
 
@@ -58,6 +59,7 @@ func (self *luaTable) put(key, val luaValue) {
 		panic("table index is NaN!")
 	}
 
+	self.changed = true
 	key = _floatToInteger(key)
 	if idx, ok := key.(int64); ok && idx >= 1 {
 		arrLen := int64(len(self.arr))
@@ -107,11 +109,17 @@ func (self *luaTable) _expandArray() {
 }
 
 func (self *luaTable) nextKey(key luaValue) luaValue {
-	if self.keys == nil || key == nil {
+	if self.keys == nil || (key == nil && self.changed) {
 		self.initKeys()
 		self.changed = false
 	}
-	return self.keys[key]
+
+	nextKey := self.keys[key]
+	if nextKey == nil && key != nil && key != self.lastKey {
+		panic("invalid key to 'next'")
+	}
+
+	return nextKey
 }
 
 func (self *luaTable) initKeys() {
@@ -123,11 +131,11 @@ func (self *luaTable) initKeys() {
 			key = int64(i + 1)
 		}
 	}
-
 	for k, v := range self._map {
 		if v != nil {
 			self.keys[key] = k
 			key = k
 		}
 	}
+	self.lastKey = key
 }
