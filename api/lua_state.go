@@ -11,6 +11,11 @@ func LuaUpvalueIndex(i int) int {
 }
 
 type LuaState interface {
+	BasicAPI
+	AuxLib
+}
+
+type BasicAPI interface {
 	/* basic stack manipulation */
 	GetTop() int
 	AbsIndex(idx int) int
@@ -45,6 +50,7 @@ type LuaState interface {
 	ToString(idx int) string
 	ToStringX(idx int) (string, bool)
 	ToGoFunction(idx int) GoFunction
+	ToPointer(idx int) interface{}
 	RawLen(idx int) uint
 	/* push functions (Go -> stack) */
 	PushNil()
@@ -52,6 +58,7 @@ type LuaState interface {
 	PushInteger(n int64)
 	PushNumber(n float64)
 	PushString(s string)
+	PushFString(fmt string, a ...interface{})
 	PushGoFunction(f GoFunction)
 	PushGoClosure(f GoFunction, n int)
 	PushGlobalTable()
@@ -87,4 +94,5 @@ type LuaState interface {
 	Concat(n int)
 	Next(idx int) bool
 	Error() int
+	StringToNumber(s string) bool
 }
